@@ -1,15 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import logo from "./logo.svg";
 import "./App.css";
 import Button from "@mui/material/Button";
+import Stack from "@mui/material/Stack";
 
 const ctx = new AudioContext();
-
-let sampleSource: AudioBufferSourceNode | null = null;
-let audioBuffer: AudioBuffer | null;
-
-// 再生中のときは true
-let isPlaying = false;
 
 // 音源を取得し AudioBuffer 形式に変換して返す関数
 const setupSample = async (index: number) => {
@@ -22,7 +17,7 @@ const setupSample = async (index: number) => {
 
 // AudioBuffer を ctx に接続し再生する関数
 const playSample = (ctx: BaseAudioContext, audioBuffer: AudioBuffer) => {
-  sampleSource = ctx.createBufferSource();
+  const sampleSource = ctx.createBufferSource();
 
   // 変換されたバッファを音源として設定
   sampleSource.buffer = audioBuffer;
@@ -30,56 +25,85 @@ const playSample = (ctx: BaseAudioContext, audioBuffer: AudioBuffer) => {
   // 出力につなげる
   sampleSource.connect(ctx.destination);
   sampleSource.start();
-  isPlaying = true;
+  return sampleSource;
 };
 
-const play = async () => {
+// React で管理しない，audio の状態．
+interface ImpureState {
+  audioBuffer: AudioBuffer | null;
+  sampleSource: AudioBufferSourceNode | null;
+  isPlaying: boolean; // 再生中なら true
+}
+
+const play = (impureState: ImpureState) => async () => {
   // 再生中なら二重に再生されないようにする
-  if (isPlaying) return;
+  if (impureState.isPlaying) return;
+
+  const audioBuffer = impureState.audioBuffer;
 
   // audioBuffer が null（まだ準備途中）なら，return．
   if (audioBuffer === null) return;
-  playSample(ctx, audioBuffer);
+  impureState.sampleSource = playSample(ctx, audioBuffer);
+  impureState.isPlaying = true;
 };
 
 // oscillator を破棄し再生を停止する
-const stop = async () => {
-  sampleSource?.stop();
-  isPlaying = false;
+const stop = (impureState: ImpureState) => async () => {
+  const sampleSource = impureState.sampleSource;
+  sampleSource?.stop(ctx.currentTime + 0.1);
+  impureState.isPlaying = false;
 };
 
-const App = () => {
-  const [isLoading, setIsLoading] = useState(true);
+interface KeyButtonProps {
+  index: number;
+  name: string;
+}
+
+const KeyButton = (keyButtonProps: KeyButtonProps) => {
+  const impureState: ImpureState = {
+    audioBuffer: null,
+    sampleSource: null,
+    isPlaying: false,
+  };
 
   // Similar to componentDidMount and componentDidUpdate:
   useEffect(() => {
     const setup = async () => {
-      audioBuffer = await setupSample(13);
-      setIsLoading(false);
+      impureState.audioBuffer = await setupSample(keyButtonProps.index);
+      console.log(`done setup for ${keyButtonProps.name}`);
     };
     setup();
   });
 
-  return isLoading ? (
-    <div>
-      <p>is loading</p>
-    </div>
-  ) : (
+  return (
+    <Stack direction="column" spacing={2}>
+      <Button
+        id="play"
+        onMouseDown={play(impureState)}
+        onMouseUp={stop(impureState)}
+      >
+        {keyButtonProps.name}
+      </Button>
+    </Stack>
+  );
+};
+
+const App = () => {
+  return (
     <div className="App">
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
         <p>
           Edit <code>src/App.tsx</code> and save to reload.
         </p>
-        <Button id="play" onClick={play}>
-          play
-        </Button>
-        <Button id="stop" onClick={stop}>
-          stop
-        </Button>
-        {
-          // <audio src="./SynthesizedPianoNotes/Piano11.mp3"></audio>
-        }
+        <Stack direction="row" spacing={2}>
+          <KeyButton index={11} name={"C"} />
+          <KeyButton index={13} name={"D"} />
+          <KeyButton index={15} name={"E"} />
+          <KeyButton index={16} name={"F"} />
+          <KeyButton index={18} name={"G"} />
+          <KeyButton index={110} name={"A"} />
+        </Stack>
       </header>
     </div>
   );
