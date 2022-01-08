@@ -1,29 +1,30 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import logo from "./logo.svg";
 import "./App.css";
 import Button from "@mui/material/Button";
 
 const ctx = new AudioContext();
 
-let sampleSource: AudioBufferSourceNode = ctx.createBufferSource();
+let sampleSource: AudioBufferSourceNode | null = null;
+let audioBuffer: AudioBuffer | null;
 
-// 再生中のときはtrue
+// 再生中のときは true
 let isPlaying = false;
 
-// 音源を取得しAudioBuffer形式に変換して返す関数
-const setupSample = async () => {
-  const response = await fetch("./SynthesizedPianoNotes/Piano11.mp3");
+// 音源を取得し AudioBuffer 形式に変換して返す関数
+const setupSample = async (index: number) => {
+  const response = await fetch(`./SynthesizedPianoNotes/Piano${index}.mp3`);
   const arrayBuffer = await response.arrayBuffer();
-  // Web Audio APIで使える形式に変換
+  // Web Audio API で使える形式に変換
   const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
   return audioBuffer;
 };
 
-// AudioBufferをctxに接続し再生する関数
+// AudioBuffer を ctx に接続し再生する関数
 const playSample = (ctx: BaseAudioContext, audioBuffer: AudioBuffer) => {
   sampleSource = ctx.createBufferSource();
 
-  // 変換されたバッファーを音源として設定
+  // 変換されたバッファを音源として設定
   sampleSource.buffer = audioBuffer;
 
   // 出力につなげる
@@ -35,42 +36,53 @@ const playSample = (ctx: BaseAudioContext, audioBuffer: AudioBuffer) => {
 const play = async () => {
   // 再生中なら二重に再生されないようにする
   if (isPlaying) return;
-  const sample = await setupSample();
-  playSample(ctx, sample);
+
+  // audioBuffer が null（まだ準備途中）なら，return．
+  if (audioBuffer === null) return;
+  playSample(ctx, audioBuffer);
 };
 
-// oscillatorを破棄し再生を停止する
+// oscillator を破棄し再生を停止する
 const stop = async () => {
   sampleSource?.stop();
   isPlaying = false;
 };
 
-const App = () => (
-  <div className="App">
-    <header className="App-header">
-      <img src={logo} className="App-logo" alt="logo" />
-      <p>
-        Edit <code>src/App.tsx</code> and save to reload.
-      </p>
-      <Button id="play" onClick={play}>
-        play
-      </Button>
-      <Button id="stop" onClick={stop}>
-        stop
-      </Button>
-      {
-        // <audio src="./SynthesizedPianoNotes/Piano11.mp3"></audio>
-      }
-      <a
-        className="App-link"
-        href="https://reactjs.org"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Learn React
-      </a>
-    </header>
-  </div>
-);
+const App = () => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Similar to componentDidMount and componentDidUpdate:
+  useEffect(() => {
+    const setup = async () => {
+      audioBuffer = await setupSample(13);
+      setIsLoading(false);
+    };
+    setup();
+  });
+
+  return isLoading ? (
+    <div>
+      <p>is loading</p>
+    </div>
+  ) : (
+    <div className="App">
+      <header className="App-header">
+        <img src={logo} className="App-logo" alt="logo" />
+        <p>
+          Edit <code>src/App.tsx</code> and save to reload.
+        </p>
+        <Button id="play" onClick={play}>
+          play
+        </Button>
+        <Button id="stop" onClick={stop}>
+          stop
+        </Button>
+        {
+          // <audio src="./SynthesizedPianoNotes/Piano11.mp3"></audio>
+        }
+      </header>
+    </div>
+  );
+};
 
 export default App;
