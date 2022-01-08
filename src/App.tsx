@@ -3,28 +3,46 @@ import logo from "./logo.svg";
 import "./App.css";
 import Button from "@mui/material/Button";
 
-// window.AudioContext = window.AudioContext || window.webkitAudioContext;
 const ctx = new AudioContext();
 
-const audioElement: HTMLAudioElement = new Audio(
-  "./SynthesizedPianoNotes/Piano11.mp3"
-);
+let sampleSource: AudioBufferSourceNode = ctx.createBufferSource();
 
-// Web Audio API内で使える形に変換
-const track = ctx.createMediaElementSource(audioElement);
+// 再生中のときはtrue
+let isPlaying = false;
 
-const play = () => {
-  if (ctx.state === "suspended") {
-    ctx.resume();
-  }
-  // 出力につなげる
-  track.connect(ctx.destination);
-  audioElement.play();
+// 音源を取得しAudioBuffer形式に変換して返す関数
+const setupSample = async () => {
+  const response = await fetch("./SynthesizedPianoNotes/Piano11.mp3");
+  const arrayBuffer = await response.arrayBuffer();
+  // Web Audio APIで使える形式に変換
+  const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+  return audioBuffer;
 };
 
-// audioElementを一時停止する
-const pause = () => {
-  audioElement.pause();
+// AudioBufferをctxに接続し再生する関数
+const playSample = (ctx: BaseAudioContext, audioBuffer: AudioBuffer) => {
+  sampleSource = ctx.createBufferSource();
+
+  // 変換されたバッファーを音源として設定
+  sampleSource.buffer = audioBuffer;
+
+  // 出力につなげる
+  sampleSource.connect(ctx.destination);
+  sampleSource.start();
+  isPlaying = true;
+};
+
+const play = async () => {
+  // 再生中なら二重に再生されないようにする
+  if (isPlaying) return;
+  const sample = await setupSample();
+  playSample(ctx, sample);
+};
+
+// oscillatorを破棄し再生を停止する
+const stop = async () => {
+  sampleSource?.stop();
+  isPlaying = false;
 };
 
 const App = () => (
@@ -37,8 +55,8 @@ const App = () => (
       <Button id="play" onClick={play}>
         play
       </Button>
-      <Button id="pause" onClick={pause}>
-        pause
+      <Button id="stop" onClick={stop}>
+        stop
       </Button>
       {
         // <audio src="./SynthesizedPianoNotes/Piano11.mp3"></audio>
