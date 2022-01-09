@@ -6,6 +6,11 @@ import ToggleButton from "@mui/material/ToggleButton";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 
+// 長さ length, で全ての値が initialValue な array を作る．
+// ただし，値は JSON.parse/stringfy を用いて deep copy する．
+const makeArray = <T extends {}>(length: number, initialValue: T): T[] =>
+  JSON.parse(JSON.stringify(Array(length).fill(initialValue)));
+
 // safari のサポートもするなら，webkitAudioContext も必要だが，面倒なのでやらない．
 const ctx = new AudioContext();
 
@@ -36,9 +41,9 @@ let nextNoteTime = 0.0; // When the next note is due.
 
 // メインのトラック
 // 音を鳴らすタイミングは true
-const trackLength = 32;
+const trackLength = 128;
 
-let globalTracks: boolean[][] = Array(6).fill(Array(trackLength).fill(false));
+let globalTracks: boolean[][] = makeArray(15, Array(trackLength).fill(false));
 
 const nextNote = () => {
   // console.log("currentNote: ", currentNote);
@@ -65,7 +70,7 @@ interface NoteInQueue {
 // アニメーション（表示）用に，今どのタイミングかを記録しておく．
 const notesInQueue: NoteInQueue[] = [];
 
-const play2 = async (soundState: SoundState, time: number) => {
+const play = async (soundState: SoundState, time: number) => {
   // 再生中なら 2 重に再生されないようにする
   if (soundState.isPlaying) return;
 
@@ -104,12 +109,15 @@ const stop = async (soundState: SoundState, time: number) => {
   soundState.isPlaying = false;
 };
 
-// 長さ length, で全ての値が initialValue な array を作る．
-// ただし，値は JSON.parse/stringfy を用いて deep copy する．
-const makeArray = <T extends {}>(length: number, initialValue: T): T[] =>
-  JSON.parse(JSON.stringify(Array(length).fill(initialValue)));
-
+// ピアノロールで自動的に鳴らす用の音
 const soundStates: SoundState[] = makeArray(15, {
+  audioBuffer: null,
+  sampleSource: null,
+  isPlaying: false,
+});
+
+// ユーザがクリックしたときに鳴らすようの音
+const testSoundStates: SoundState[] = makeArray(15, {
   audioBuffer: null,
   sampleSource: null,
   isPlaying: false,
@@ -140,6 +148,7 @@ const setup = async () => {
   ].forEach(async (note, index) => {
     console.log("index, note", index, note);
     soundStates[index].audioBuffer = await setupSample(note);
+    testSoundStates[index].audioBuffer = await setupSample(note);
   });
 
   console.log(`done setup for tracks`);
@@ -156,7 +165,7 @@ const scheduleNote =
       if (track[beatNumber]) {
         // play in time
         console.log("index", index);
-        play2(soundStates[index], time);
+        play(soundStates[index], time);
       } else {
         // もし選択されていない（かつすでに鳴っている）なら止める．
         if (soundStates[index].isPlaying) {
@@ -180,45 +189,65 @@ const scheduler = () => {
 };
 
 interface TrackCellProp {
+  trackIndex: number;
   index: number;
-  isSelected: boolean;
-  setIsSelected: (isSelected: boolean) => void;
 }
 
+// 一つ一つのノート
 const TrackCell = (trackCellProp: TrackCellProp) => {
+  // Declare a new state variable, which we'll call "count"
+  const [isSelected, setIsSelected] = useState(false);
+
   return (
     <ToggleButton
+      className={`cell (_, ${trackCellProp.index})`}
       value="check"
-      selected={trackCellProp.isSelected}
-      onChange={() => {
-        trackCellProp.setIsSelected(!trackCellProp.isSelected);
+      selected={isSelected}
+      onMouseDown={() => {
+        // 2 重に再生されないようになっているので，まず止めてから再生する．
+        // 要改良
+        stop(testSoundStates[trackCellProp.trackIndex], 0);
+        play(testSoundStates[trackCellProp.trackIndex], 0);
       }}
+      onMouseUp={() => {
+        stop(testSoundStates[trackCellProp.trackIndex], 0);
+      }}
+      onChange={() => {
+        console.log(
+          `set cell (${trackCellProp.trackIndex}, ${trackCellProp.index})`,
+          !isSelected
+        );
+        setIsSelected(!isSelected);
+        globalTracks[trackCellProp.trackIndex][trackCellProp.index] =
+          !isSelected;
+      }}
+      style={{ width: "10px", height: "10px" }}
     >
-      {trackCellProp.index}
+      <code style={{ color: "#666" }}>
+        {trackCellProp.index % 4 === 0 ? "." : " "}
+      </code>
     </ToggleButton>
   );
 };
 
 interface TrackCellsProps {
-  index: number;
-  track: boolean[];
-  setTrack: (track: boolean[]) => void;
+  trackIndex: number;
 }
 
+// 一本のトラック
 const TrackCells = (trackCellsProps: TrackCellsProps) => {
+  const track = Array(trackLength).fill(false);
+
   return (
-    <Stack direction="row" spacing={2}>
-      <div>{noteNames[trackCellsProps.index]}</div>
-      {trackCellsProps.track.map((trackCell, index) => (
+    <Stack direction="row" spacing={1}>
+      <div>
+        <code>{noteNames[trackCellsProps.trackIndex]}</code>
+      </div>
+      {track.map((_, index) => (
         <TrackCell
           key={index}
+          trackIndex={trackCellsProps.trackIndex}
           index={index}
-          isSelected={trackCell}
-          setIsSelected={(isSelected: boolean) => {
-            const track = [...trackCellsProps.track];
-            track[index] = isSelected;
-            trackCellsProps.setTrack([...track]);
-          }}
         />
       ))}
     </Stack>
@@ -226,10 +255,7 @@ const TrackCells = (trackCellsProps: TrackCellsProps) => {
 };
 
 const Tracks = () => {
-  // Declare a new state variable, which we'll call "count"
-  const [tracks, setTracks] = useState(
-    Array(15).fill(Array(trackLength).fill(false))
-  );
+  const tracks = Array(15).fill(false);
 
   return (
     <div
@@ -238,24 +264,14 @@ const Tracks = () => {
         overflowY: "scroll",
         width: "90%",
         height: "100%",
+        fontSize: "calc(5px + 2vmin)",
+        color: "#222",
       }}
     >
-      <Stack direction="column" spacing={2}>
-        {tracks
-          .slice()
-          .reverse()
-          .map((track, index) => (
-            <TrackCells
-              key={index}
-              index={tracks.length - index - 1}
-              track={track}
-              setTrack={(track: boolean[]) => {
-                tracks[tracks.length - index - 1] = track;
-                globalTracks = tracks;
-                setTracks([...tracks]);
-              }}
-            />
-          ))}
+      <Stack direction="column" spacing={1}>
+        {tracks.map((_, index) => (
+          <TrackCells key={index} trackIndex={tracks.length - index - 1} />
+        ))}
       </Stack>
     </div>
   );
@@ -275,6 +291,22 @@ const draw = (setBeatTimer: (beatTimer: number) => void) => () => {
   // We only need to draw if the note has moved.
   if (lastNoteDrawn !== drawNote) {
     setBeatTimer(drawNote);
+
+    // 現在再生している部分をハイライトする．
+    const currentNoteElems = document.getElementsByClassName(
+      `cell (_, ${drawNote})`
+    ) as HTMLCollectionOf<HTMLElement>;
+    for (let i = 0; i < currentNoteElems.length; i++) {
+      currentNoteElems[i].style.boxShadow = "0 0 8px rgba(255, 255, 255, 0.2)";
+    }
+
+    // ハイライトを除去する．
+    const lastNoteElems = document.getElementsByClassName(
+      `cell (_, ${lastNoteDrawn})`
+    ) as HTMLCollectionOf<HTMLElement>;
+    for (let i = 0; i < lastNoteElems.length; i++) {
+      lastNoteElems[i].style.boxShadow = "none";
+    }
 
     lastNoteDrawn = drawNote;
   }
