@@ -15,7 +15,7 @@ const makeArray = <T extends {}>(length: number, initialValue: T): T[] =>
 const ctx = new AudioContext();
 
 // 音源を取得し AudioBuffer 形式に変換して返す関数
-const setupSample = async (index: number) => {
+const setupSample = async (index: string) => {
   console.log("setting", index);
   const response = await fetch(`./SynthesizedPianoNotes/Piano${index}.mp3`);
   const arrayBuffer = await response.arrayBuffer();
@@ -45,6 +45,20 @@ const trackLength = 32;
 
 // 各音の名前
 const noteNames = [
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "A",
+  "B",
   "C",
   "D",
   "E",
@@ -132,14 +146,14 @@ const stop = async (soundState: SoundState, time: number) => {
 };
 
 // ピアノロールで自動的に鳴らす用の音
-const soundStates: SoundState[] = makeArray(15, {
+const soundStates: SoundState[] = makeArray(noteNames.length, {
   audioBuffer: null,
   sampleSource: null,
   isPlaying: false,
 });
 
 // ユーザがクリックしたときに鳴らすようの音
-const testSoundStates: SoundState[] = makeArray(15, {
+const testSoundStates: SoundState[] = makeArray(noteNames.length, {
   audioBuffer: null,
   sampleSource: null,
   isPlaying: false,
@@ -148,7 +162,35 @@ const testSoundStates: SoundState[] = makeArray(15, {
 // 音源を setup する．
 const setup = async () => {
   [
-    11, 13, 15, 16, 18, 110, 112, 113, 115, 117, 118, 120, 122, 124, 125,
+    "11 (12)", // C
+    "11 (10)", // D
+    "11 (8)", // E
+    "11 (7)", // F
+    "11 (5)", // G
+    "11 (3)", // A
+    "11 (1)", // B
+    "11",
+    "13",
+    "15",
+    "16",
+    "18",
+    "110",
+    "112",
+    "113",
+    "115",
+    "117",
+    "118",
+    "120",
+    "122",
+    "124",
+    "125", // C
+    "125 (2)", // D
+    "125 (4)", // E
+    "125 (5)", // F
+    "125 (7)", // G
+    "125 (9)", // A
+    "125 (11)", // B
+    "125 (12)", // C
   ].forEach(async (note, index) => {
     console.log("index, note", index, note);
     const audioBuffer = await setupSample(note);
@@ -275,6 +317,8 @@ const Tracks = () => {
         color: "#777",
         display: "block",
         width: "90%",
+        maxHeight: "80vh",
+        overflowY: "scroll",
       }}
     >
       <Stack
@@ -293,7 +337,7 @@ const Tracks = () => {
       <div
         style={{
           overflowX: "scroll",
-          overflowY: "scroll",
+          // overflowY: "scroll",
           width: "calc(100% - 30px)",
           height: "100%",
           fontSize: "calc(5px + 2vmin)",
