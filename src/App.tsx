@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import Button from "@mui/material/Button";
+// import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -19,78 +19,12 @@ const setupSample = async (index: number) => {
   return audioBuffer;
 };
 
-// AudioBuffer を ctx に接続し再生する関数
-const playSample = (ctx: BaseAudioContext, audioBuffer: AudioBuffer) => {
-  const sampleSource = ctx.createBufferSource();
-
-  // 変換されたバッファを音源として設定
-  sampleSource.buffer = audioBuffer;
-
-  // 出力につなげる
-  sampleSource.connect(ctx.destination);
-  sampleSource.start();
-  return sampleSource;
-};
-
 // React で管理しない，audio の状態．
-interface ImpureState {
+interface SoundState {
   audioBuffer: AudioBuffer | null;
   sampleSource: AudioBufferSourceNode | null;
   isPlaying: boolean; // 再生中なら true
 }
-
-const play = (impureState: ImpureState) => async () => {
-  // 再生中なら 2 重に再生されないようにする
-  if (impureState.isPlaying) return;
-
-  const audioBuffer = impureState.audioBuffer;
-
-  // audioBuffer が null（まだ準備途中）なら，return．
-  if (audioBuffer === null) return;
-  impureState.sampleSource = playSample(ctx, audioBuffer);
-  impureState.isPlaying = true;
-};
-
-// oscillator を破棄し再生を停止する
-const stop = (impureState: ImpureState) => async () => {
-  const sampleSource = impureState.sampleSource;
-  sampleSource?.stop(ctx.currentTime + 0.1);
-  impureState.isPlaying = false;
-};
-
-interface KeyButtonProps {
-  index: number;
-  name: string;
-}
-
-const KeyButton = (keyButtonProps: KeyButtonProps) => {
-  const impureState: ImpureState = {
-    audioBuffer: null,
-    sampleSource: null,
-    isPlaying: false,
-  };
-
-  // Similar to componentDidMount and componentDidUpdate:
-  useEffect(() => {
-    const setup = async () => {
-      impureState.audioBuffer = await setupSample(keyButtonProps.index);
-      console.log(`done setup for ${keyButtonProps.name}`);
-    };
-    setup();
-  });
-
-  return (
-    <Stack direction="column" spacing={2}>
-      <Button
-        id="play"
-        onMouseDown={play(impureState)}
-        onMouseUp={stop(impureState)}
-      >
-        {keyButtonProps.name}
-      </Button>
-    </Stack>
-  );
-};
 
 const bpm = 80.0; // tempo
 
@@ -102,7 +36,7 @@ let nextNoteTime = 0.0; // When the next note is due.
 
 // メインのトラック
 // 音を鳴らすタイミングは true
-const trackLength = 16;
+const trackLength = 32;
 
 let globalTracks: boolean[][] = Array(6).fill(Array(trackLength).fill(false));
 
@@ -122,25 +56,30 @@ const nextNote = () => {
   }
 };
 
+// アニメーション（表示）用に，今どのタイミングかを記録しておくための型．
 interface NoteInQueue {
   note: number;
   time: number;
 }
 
+// アニメーション（表示）用に，今どのタイミングかを記録しておく．
 const notesInQueue: NoteInQueue[] = [];
 
-const play2 = async (impureState: ImpureState, time: number) => {
-  // // 再生中なら 2 重に再生されないようにする
-  // if (impureState.isPlaying) return;
+const play2 = async (soundState: SoundState, time: number) => {
+  // 再生中なら 2 重に再生されないようにする
+  if (soundState.isPlaying) return;
+
   console.log("play2");
 
-  const audioBuffer = impureState.audioBuffer;
+  const audioBuffer = soundState.audioBuffer;
 
   // audioBuffer が null（まだ準備途中）なら，return．
   if (audioBuffer === null) {
     console.log("audioBuffer === null");
     return;
   }
+
+  // AudioBuffer を ctx に接続し再生する
   const sampleSource = ctx.createBufferSource();
 
   // 変換されたバッファを音源として設定
@@ -148,26 +87,59 @@ const play2 = async (impureState: ImpureState, time: number) => {
 
   // 出力につなげる
   sampleSource.connect(ctx.destination);
+
+  // time 後に鳴らすようにスケジュールする
   // console.log("time: ", time);
   sampleSource.start(time);
-  impureState.sampleSource = sampleSource;
-  impureState.isPlaying = true;
+
+  // stop できるように，今再生している AudioBuffer を記録しておく．
+  soundState.sampleSource = sampleSource;
+  soundState.isPlaying = true;
 };
 
-const impureStates: ImpureState[] = JSON.parse(
-  JSON.stringify(
-    Array(6).fill({
-      audioBuffer: null,
-      sampleSource: null,
-      isPlaying: false,
-    })
-  )
-);
+// oscillator を破棄し再生を停止する
+const stop = async (soundState: SoundState, time: number) => {
+  const sampleSource = soundState.sampleSource;
+  sampleSource?.stop(time + 0.1);
+  soundState.isPlaying = false;
+};
 
+// 長さ length, で全ての値が initialValue な array を作る．
+// ただし，値は JSON.parse/stringfy を用いて deep copy する．
+const makeArray = <T extends {}>(length: number, initialValue: T): T[] =>
+  JSON.parse(JSON.stringify(Array(length).fill(initialValue)));
+
+const soundStates: SoundState[] = makeArray(15, {
+  audioBuffer: null,
+  sampleSource: null,
+  isPlaying: false,
+});
+
+const noteNames = [
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "A",
+  "B",
+  "C",
+];
+
+// 音源を setup する．
 const setup = async () => {
-  [11, 13, 15, 16, 18, 110].forEach(async (note, index) => {
+  [
+    11, 13, 15, 16, 18, 110, 112, 113, 115, 117, 118, 120, 122, 124, 125,
+  ].forEach(async (note, index) => {
     console.log("index, note", index, note);
-    impureStates[index].audioBuffer = await setupSample(note);
+    soundStates[index].audioBuffer = await setupSample(note);
   });
 
   console.log(`done setup for tracks`);
@@ -175,7 +147,7 @@ const setup = async () => {
 setup();
 
 const scheduleNote =
-  (impureStates: ImpureState[]) => (beatNumber: number, time: number) => {
+  (soundStates: SoundState[]) => (beatNumber: number, time: number) => {
     // push the note on the queue, even if we're not playing.
     notesInQueue.push({ note: beatNumber, time: time });
 
@@ -184,7 +156,13 @@ const scheduleNote =
       if (track[beatNumber]) {
         // play in time
         console.log("index", index);
-        play2(impureStates[index], time);
+        play2(soundStates[index], time);
+      } else {
+        // もし選択されていない（かつすでに鳴っている）なら止める．
+        if (soundStates[index].isPlaying) {
+          console.log("stop", index);
+          stop(soundStates[index], time);
+        }
       }
     });
   };
@@ -195,7 +173,7 @@ const scheduler = () => {
   // schedule them and advance the pointer
   while (nextNoteTime < ctx.currentTime + scheduleAheadTime) {
     // console.log("scheduleNote");
-    scheduleNote(impureStates)(currentNote, nextNoteTime);
+    scheduleNote(soundStates)(currentNote, nextNoteTime);
     nextNote();
   }
   timerID = window.setTimeout(scheduler, lookahead);
@@ -227,8 +205,6 @@ interface TrackCellsProps {
   setTrack: (track: boolean[]) => void;
 }
 
-const noteNames = ["C", "D", "E", "F", "G", "A"];
-
 const TrackCells = (trackCellsProps: TrackCellsProps) => {
   return (
     <Stack direction="row" spacing={2}>
@@ -252,27 +228,36 @@ const TrackCells = (trackCellsProps: TrackCellsProps) => {
 const Tracks = () => {
   // Declare a new state variable, which we'll call "count"
   const [tracks, setTracks] = useState(
-    Array(6).fill(Array(trackLength).fill(false))
+    Array(15).fill(Array(trackLength).fill(false))
   );
 
   return (
-    <Stack direction="column" spacing={2}>
-      {tracks
-        .slice()
-        .reverse()
-        .map((track, index) => (
-          <TrackCells
-            key={index}
-            index={tracks.length - index - 1}
-            track={track}
-            setTrack={(track: boolean[]) => {
-              tracks[tracks.length - index - 1] = track;
-              globalTracks = tracks;
-              setTracks([...tracks]);
-            }}
-          />
-        ))}
-    </Stack>
+    <div
+      style={{
+        overflowX: "scroll",
+        overflowY: "scroll",
+        width: "90%",
+        height: "100%",
+      }}
+    >
+      <Stack direction="column" spacing={2}>
+        {tracks
+          .slice()
+          .reverse()
+          .map((track, index) => (
+            <TrackCells
+              key={index}
+              index={tracks.length - index - 1}
+              track={track}
+              setTrack={(track: boolean[]) => {
+                tracks[tracks.length - index - 1] = track;
+                globalTracks = tracks;
+                setTracks([...tracks]);
+              }}
+            />
+          ))}
+      </Stack>
+    </div>
   );
 };
 
@@ -314,10 +299,8 @@ const PlayButton = () => {
       nextNoteTime = ctx.currentTime;
       scheduler(); // kick off scheduling
       requestAnimationFrame(draw(setBeatTimer)); // start the drawing loop.
-      // this.dataset.playing = "true";
     } else {
       window.clearTimeout(timerID);
-      // this.dataset.playing = "false";
     }
   };
 
@@ -345,24 +328,8 @@ const App = () => {
   return (
     <div className="App">
       <header className="App-header">
-        {
-          //  <img src={logo} className="App-logo" alt="logo" />
-          //  <p>
-          //    Edit <code>src/App.tsx</code> and save to reload.
-          //  </p>
-        }
         <PlayButton />
         <Tracks />
-        {
-          //   <Stack direction="row" spacing={2}>
-          //     <KeyButton index={11} name={"C"} />
-          //     <KeyButton index={13} name={"D"} />
-          //     <KeyButton index={15} name={"E"} />
-          //     <KeyButton index={16} name={"F"} />
-          //     <KeyButton index={18} name={"G"} />
-          //     <KeyButton index={110} name={"A"} />
-          //   </Stack>
-        }
       </header>
     </div>
   );
