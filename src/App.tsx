@@ -473,7 +473,7 @@ const PlayButton = (playButtonProps: PlayButtonProps) => {
             min={1}
             max={300}
           />
-          <p>{bpm}</p>
+          <Box>{bpm}</Box>
         </Box>
         <Box style={{ width: "200px" }}>
           <Slider
@@ -483,7 +483,7 @@ const PlayButton = (playButtonProps: PlayButtonProps) => {
             max={trackLength - 1}
             step={1}
           />
-          <p>{beatTimer}</p>
+          <Box>{beatTimer}</Box>
         </Box>
         <label htmlFor="file-upload">
           <input
