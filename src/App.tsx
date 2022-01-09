@@ -41,9 +41,31 @@ let nextNoteTime = 0.0; // When the next note is due.
 
 // メインのトラック
 // 音を鳴らすタイミングは true
-const trackLength = 128;
+const trackLength = 32;
 
-let globalTracks: boolean[][] = makeArray(15, Array(trackLength).fill(false));
+// 各音の名前
+const noteNames = [
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "A",
+  "B",
+  "C",
+];
+
+let globalTracks: boolean[][] = makeArray(
+  noteNames.length,
+  Array(trackLength).fill(false)
+);
 
 const nextNote = () => {
   // console.log("currentNote: ", currentNote);
@@ -74,7 +96,7 @@ const play = async (soundState: SoundState, time: number) => {
   // 再生中なら 2 重に再生されないようにする
   if (soundState.isPlaying) return;
 
-  console.log("play2");
+  console.log("play");
 
   const audioBuffer = soundState.audioBuffer;
 
@@ -123,32 +145,15 @@ const testSoundStates: SoundState[] = makeArray(15, {
   isPlaying: false,
 });
 
-const noteNames = [
-  "C",
-  "D",
-  "E",
-  "F",
-  "G",
-  "A",
-  "B",
-  "C",
-  "D",
-  "E",
-  "F",
-  "G",
-  "A",
-  "B",
-  "C",
-];
-
 // 音源を setup する．
 const setup = async () => {
   [
     11, 13, 15, 16, 18, 110, 112, 113, 115, 117, 118, 120, 122, 124, 125,
   ].forEach(async (note, index) => {
     console.log("index, note", index, note);
-    soundStates[index].audioBuffer = await setupSample(note);
-    testSoundStates[index].audioBuffer = await setupSample(note);
+    const audioBuffer = await setupSample(note);
+    soundStates[index].audioBuffer = audioBuffer;
+    testSoundStates[index].audioBuffer = audioBuffer;
   });
 
   console.log(`done setup for tracks`);
@@ -221,11 +226,9 @@ const TrackCell = (trackCellProp: TrackCellProp) => {
         globalTracks[trackCellProp.trackIndex][trackCellProp.index] =
           !isSelected;
       }}
-      style={{ width: "10px", height: "10px" }}
+      style={{ width: "10px", height: "10px", color: "#777" }}
     >
-      <code style={{ color: "#666" }}>
-        {trackCellProp.index % 4 === 0 ? "." : " "}
-      </code>
+      <code>{trackCellProp.index % 4 === 0 ? "." : " "}</code>
     </ToggleButton>
   );
 };
@@ -240,9 +243,6 @@ const TrackCells = (trackCellsProps: TrackCellsProps) => {
 
   return (
     <Stack direction="row" spacing={1}>
-      <div>
-        <code>{noteNames[trackCellsProps.trackIndex]}</code>
-      </div>
       {track.map((_, index) => (
         <TrackCell
           key={index}
@@ -254,25 +254,59 @@ const TrackCells = (trackCellsProps: TrackCellsProps) => {
   );
 };
 
+interface TrackNoteHeaderProps {
+  trackIndex: number;
+}
+
+const TrackNoteHeader = (trackNoteHeaderProps: TrackNoteHeaderProps) => (
+  <div style={{ width: "24.5px", height: "24.5px" }}>
+    <code>{noteNames[trackNoteHeaderProps.trackIndex]}</code>
+  </div>
+);
+
 const Tracks = () => {
-  const tracks = Array(15).fill(false);
+  const tracks = Array(noteNames.length).fill(false);
 
   return (
     <div
       style={{
-        overflowX: "scroll",
-        overflowY: "scroll",
-        width: "90%",
         height: "100%",
         fontSize: "calc(5px + 2vmin)",
-        color: "#222",
+        color: "#777",
+        display: "block",
+        width: "90%",
       }}
     >
-      <Stack direction="column" spacing={1}>
+      <Stack
+        direction="column"
+        spacing={1}
+        style={{
+          display: "inline-block",
+          width: "30px",
+          verticalAlign: "top",
+        }}
+      >
         {tracks.map((_, index) => (
-          <TrackCells key={index} trackIndex={tracks.length - index - 1} />
+          <TrackNoteHeader key={index} trackIndex={tracks.length - index - 1} />
         ))}
       </Stack>
+      <div
+        style={{
+          overflowX: "scroll",
+          overflowY: "scroll",
+          width: "calc(100% - 30px)",
+          height: "100%",
+          fontSize: "calc(5px + 2vmin)",
+          color: "#777",
+          display: "inline-block",
+        }}
+      >
+        <Stack direction="column" spacing={1}>
+          {tracks.map((_, index) => (
+            <TrackCells key={index} trackIndex={tracks.length - index - 1} />
+          ))}
+        </Stack>
+      </div>
     </div>
   );
 };
