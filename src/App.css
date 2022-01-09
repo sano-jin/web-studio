@@ -23,7 +23,7 @@
   align-items: center;
   justify-content: center;
   font-size: calc(10px + 2vmin);
-  color: white;
+  color: #777;
 }
 
 .App-link {
@@ -37,4 +37,14 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.custom-button {
+  padding: 20px;
+  border-radius: 5px;
+}
+
+.custom-button:hover {
+  background-color: #444;
+  cursor: pointer;
 }
