@@ -14,7 +14,7 @@ import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import InfoIcon from "@mui/icons-material/Info";
 import GitHubIcon from "@mui/icons-material/GitHub";
-import Divider from "@mui/material/Divider";
+// import Divider from "@mui/material/Divider";
 
 export const ProjectInfo = () => {
   const [open, setOpen] = React.useState(false);
@@ -48,7 +48,11 @@ export const ProjectInfo = () => {
             <p>A simple online music maker.</p>
             <p>
               This is a free project under the MIT License. View source code at
-              <IconButton href="https://github.com/sano-jin/web-studio">
+              <IconButton
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://github.com/sano-jin/web-studio"
+              >
                 <GitHubIcon />
               </IconButton>
             </p>
