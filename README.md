@@ -2,7 +2,9 @@
 
 > online music maker
 
-![Demo](./demo/canon-demo.png)
+[![Demo](./demo/canon-demo.png)](https://online-studio.herokuapp.com/)
+
+[Try it!](https://online-studio.herokuapp.com/)
 
 [Demo video](./demo/canon-demo.mp4) (you may need to download to watch)
 
