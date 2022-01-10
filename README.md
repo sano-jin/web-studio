@@ -4,7 +4,7 @@
 
 ![Demo](./demo/canon-demo.png)
 
-![Demo](./demo/canon-demo.mp4)
+[Demo video](./demo/canon-demo.mp4) (you may need to download to watch)
 
 ## Prerequisites
 
