@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 import Button from "@mui/material/Button";
+// import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -10,6 +11,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Slider from "@mui/material/Slider";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
+// import InfoIcon from "@mui/icons-material/Info";
 import { makeArray, UploadButton, DownloadButton } from "./util";
 import {
   noteNames,
@@ -18,6 +20,7 @@ import {
   testSoundStates,
   setup,
 } from "./soundSamples";
+import { ProjectInfo } from "./Info";
 
 // safari のサポートもするなら，webkitAudioContext も必要だが，面倒なのでやらない．
 const audioContext = new AudioContext();
@@ -501,8 +504,11 @@ const App = () => {
         ) : (
           <Box sx={{ flexGrow: 1 }} style={{ width: "90%", margin: "50px 0" }}>
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid item xs={11}>
                 <PlayButton setInitialTracks={setInitialTracks} />
+              </Grid>
+              <Grid item xs={1}>
+                <ProjectInfo />
               </Grid>
               <Grid item xs={12}>
                 <Tracks initialTracks={initialTracks} />
