@@ -1,21 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
-// import logo from "./logo.svg";
-// import Button from "@mui/material/Button";
+import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
-import Button from "@mui/material/Button";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import PauseIcon from "@mui/icons-material/Pause";
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
-import FileUploadIcon from "@mui/icons-material/FileUpload";
 import CircularProgress from "@mui/material/CircularProgress";
 import Slider from "@mui/material/Slider";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
-// import Chip from "@mui/material/Chip";
-import { makeArray } from "./util";
+import { makeArray, UploadButton, DownloadButton } from "./util";
 import {
   noteNames,
   SoundState,
@@ -71,6 +66,7 @@ interface NoteInQueue {
 // アニメーション（表示）用に，今どのタイミングかを記録しておく．
 const notesInQueue: NoteInQueue[] = [];
 
+// time 秒後に音を鳴らす
 const play = async (soundState: SoundState, time: number) => {
   // 再生中なら 2 重に再生されないようにする
   if (soundState.isPlaying) return;
@@ -162,7 +158,17 @@ const TrackCell = (props: TrackCellProps) => {
     props.initialTracks[props.trackIndex][props.index]
   );
 
+  // 最初はどのみちクリアしているはずなので，一番最初の描画では更新しないようにする．
+  const firstUpdate = useRef(true);
   useEffect(() => {
+    if (firstUpdate.current) {
+      firstUpdate.current = false;
+      return;
+    }
+
+    // initialTracks（ユーザがアップロードしたメロディ）が更新されたら
+    // （ユーザがアップロードしたら）このノートも更新する．
+    console.log("initialize cells");
     setIsSelected(props.initialTracks[props.trackIndex][props.index]);
   }, [props.trackIndex, props.index, props.initialTracks]);
 
@@ -275,14 +281,15 @@ const Tracks = (props: { initialTracks: boolean[][] }) => {
       <div
         style={{
           overflowX: "scroll",
+          overflowY: "hidden",
           width: "calc(100% - 30px)",
-          height: "100%",
+          height: "auto",
           fontSize: "calc(5px + 1vmin)",
           color: "#777",
           display: "inline-block",
         }}
       >
-        <Stack direction="column" spacing={0}>
+        <Stack direction="column" spacing={0} id="piano-roll">
           {tracks.map((_, index) => (
             <TrackCells
               key={index}
@@ -386,13 +393,9 @@ const PlayButton = (playButtonProps: PlayButtonProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [beatTimer, setBeatTimer] = useState(0);
   const [bpm, setBPM] = useState(100);
-  const [fileDownloadUrl, setFileDownloadUrl] = useState<string | undefined>(
-    undefined
-  );
-  const dofileDownload = useRef<HTMLAnchorElement>(null);
 
   const handleChangeBPM = (event: Event, newBPM: number | number[]) => {
-    globalBPM = bpm;
+    globalBPM = newBPM as number;
     setBPM(newBPM as number);
   };
 
@@ -401,41 +404,8 @@ const PlayButton = (playButtonProps: PlayButtonProps) => {
     newBeatTimer: number | number[]
   ) => {
     currentNote = newBeatTimer as number;
+    eliminateHilights();
     setBeatTimer(newBeatTimer as number);
-  };
-
-  // uploader
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files === null) return;
-    const file = files[0];
-    if (file === null) return;
-    file.text().then((text) => {
-      const tracks = JSON.parse(text);
-      globalTracks = tracks;
-      playButtonProps.setInitialTracks(globalTracks);
-    });
-  };
-
-  // downloader の補助関数．
-  // url を設定し終えた後に，クリックする．
-  useEffect(() => {
-    // "Do something after fileDownloadUrl has changed"
-    if (fileDownloadUrl !== undefined) {
-      if (!dofileDownload || !dofileDownload.current) return;
-      dofileDownload.current.click(); // Step 6
-      URL.revokeObjectURL(fileDownloadUrl); // Step 7
-      setFileDownloadUrl(undefined);
-    }
-  }, [fileDownloadUrl]);
-
-  // downloader
-  const handleFileDownload = () => {
-    const output = JSON.stringify(globalTracks);
-    const blob = new Blob([output]); // Step 3
-    console.log(blob);
-    const fileDownloadUrl = URL.createObjectURL(blob); // Step 4
-    setFileDownloadUrl(fileDownloadUrl); // Step 5
   };
 
   return (
@@ -466,6 +436,7 @@ const PlayButton = (playButtonProps: PlayButtonProps) => {
           {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
         </ToggleButton>
         <Box style={{ width: "200px" }}>
+          <Box>Tempo</Box>
           <Slider
             aria-label="bpm"
             value={bpm}
@@ -476,6 +447,7 @@ const PlayButton = (playButtonProps: PlayButtonProps) => {
           <Box>{bpm}</Box>
         </Box>
         <Box style={{ width: "200px" }}>
+          <Box>Position</Box>
           <Slider
             aria-label="beatTimer"
             value={beatTimer}
@@ -485,32 +457,19 @@ const PlayButton = (playButtonProps: PlayButtonProps) => {
           />
           <Box>{beatTimer}</Box>
         </Box>
-        <label htmlFor="file-upload">
-          <input
-            id="file-upload"
-            type="file"
-            name="file-upload"
-            onChange={handleFileUpload}
-            style={{ display: "none" }}
-          />
-          <Box className="custom-button file-uploader">
-            <FileUploadIcon />
-          </Box>
-        </label>
-        <Button aria-label="file-download" onClick={handleFileDownload}>
-          <FileDownloadIcon />
-        </Button>
-        {
-          // a hidden anchor element
-          <a
-            style={{ display: "none" }}
-            download={"song.txt"}
-            href={fileDownloadUrl}
-            ref={dofileDownload}
-          >
-            download it
-          </a>
-        }
+        <UploadButton
+          setFile={(file) => {
+            file.text().then((text) => {
+              const tracks = JSON.parse(text);
+              globalTracks = tracks;
+              playButtonProps.setInitialTracks(globalTracks);
+            });
+          }}
+        />
+        <DownloadButton
+          content={JSON.stringify(globalTracks)}
+          fileName="song.txt"
+        />
       </Stack>
     </div>
   );
