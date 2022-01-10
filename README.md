@@ -2,6 +2,8 @@
 
 > online music maker
 
+[Demo](./demo/canon-demo.mp4)
+
 ## Prerequisites
 
 This project requires NodeJS (version 8 or later) and NPM.
