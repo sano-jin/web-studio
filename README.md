@@ -2,7 +2,9 @@
 
 > online music maker
 
-[Demo](./demo/canon-demo.mp4)
+![Demo](./demo/canon-demo.png)
+
+![Demo](./demo/canon-demo.mp4)
 
 ## Prerequisites
 
