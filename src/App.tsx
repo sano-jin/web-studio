@@ -102,7 +102,7 @@ const play = async (soundState: SoundState, time: number) => {
 // oscillator を破棄し再生を停止する
 const stop = async (soundState: SoundState, time: number) => {
   const sampleSource = soundState.sampleSource;
-  sampleSource?.stop(time + 0.1);
+  sampleSource?.stop(time);
   soundState.isPlaying = false;
 };
 
@@ -185,7 +185,7 @@ const TrackCell = (props: TrackCellProps) => {
         play(testSoundStates[props.trackIndex], 0);
       }}
       onMouseUp={() => {
-        stop(testSoundStates[props.trackIndex], 0);
+        stop(testSoundStates[props.trackIndex], 0.1);
       }}
       onChange={() => {
         // 選択状態かどうかをトグルする．
