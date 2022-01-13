@@ -49,7 +49,7 @@ Start with cloning this repo on your local machine:
 
 ```sh
 $ git clone https://github.com/sano-jin/web-studio.git
-$ cd PROJECT
+$ cd web-studio
 ```
 
 To install and set up the library, run:

@@ -15,7 +15,7 @@
 
 .App-header {
   /* background-color: #282c34; */
-  background-color: #222;
+  /* background-color: #222; */
   background-color: #282c34;
   min-height: 100vh;
   display: flex;
@@ -65,6 +65,6 @@
   background-color: rgba(180, 180, 255, 0.2);
 }
 
-.track-cell: hover {
+.track-cell:hover {
   box-shadow: 0 0 20px rgba(180, 180, 255, 0.8);
 }
