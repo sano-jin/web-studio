@@ -7,6 +7,7 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import Box from "@mui/material/Box";
 import { styled } from "@mui/material/styles";
+import TextField from "@mui/material/TextField";
 
 // 長さ length, で全ての値が initialValue な array を作る．
 // ただし，値は JSON.parse/stringfy を用いて deep copy する．
@@ -98,6 +99,63 @@ export const DownloadButton = (props: DownloadButtonProps) => {
           download it
         </a>
       }
+    </Box>
+  );
+};
+
+// トラックの長さを入力するためのボタン
+export const TrackLengthField = (props: {
+  setTrackLength: (trackLength: number) => void;
+  initialTrackLength: number;
+  min: number;
+}) => {
+  const [trackLengthStr, setTrackLengthStr] = useState(
+    `${props.initialTrackLength}`
+  );
+  const [isError, setIsError] = useState(false);
+
+  useEffect(
+    () => setTrackLengthStr(`${props.initialTrackLength}`),
+    [props.initialTrackLength]
+  );
+
+  return (
+    <Box>
+      <TextField
+        error={isError}
+        value={trackLengthStr}
+        label="Length"
+        type="number"
+        helperText={
+          isError ? `the length must not be shorter than ${props.min}` : ""
+        }
+        InputProps={{ inputProps: { min: props.min } }}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+          if (e.target) {
+            const newLength = e.target.value;
+            console.log("setting track length");
+            setTrackLengthStr(newLength);
+
+            if (newLength.length <= 0) {
+              console.log("too short");
+              setIsError(true);
+              props.setTrackLength(props.min);
+              return;
+            }
+
+            const newLengthNum = parseInt(newLength);
+
+            if (!isNaN(newLengthNum) && newLengthNum < props.min) {
+              console.log("too short");
+              setIsError(true);
+              props.setTrackLength(props.min);
+            } else {
+              setIsError(false);
+              props.setTrackLength(newLengthNum);
+            }
+          }
+        }}
+      />
     </Box>
   );
 };

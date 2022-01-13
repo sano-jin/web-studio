@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import "./App.css";
 import Button from "@mui/material/Button";
 // import IconButton from "@mui/material/IconButton";
@@ -12,7 +12,12 @@ import Slider from "@mui/material/Slider";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
 // import InfoIcon from "@mui/icons-material/Info";
-import { makeArray, UploadButton, DownloadButton } from "./util";
+import {
+  makeArray,
+  UploadButton,
+  DownloadButton,
+  TrackLengthField,
+} from "./util";
 import {
   noteNames,
   SoundState,
@@ -34,7 +39,7 @@ let currentNote = 0;
 let nextNoteTime = 0.0; // When the next note is due.
 
 // メインのトラックの長さ（todo: user definable にする）
-const trackLength = 64;
+let trackLength = 256;
 
 // メインのトラック
 // 音を鳴らすタイミングは true
@@ -103,7 +108,9 @@ const play = async (soundState: SoundState, time: number) => {
 };
 
 // oscillator を破棄し再生を停止する
+// time の値は，audioContext.currentTime + <現在遅刻からの経過秒数> のようにして指定する
 const stop = async (soundState: SoundState, time: number) => {
+  // console.log(`stop in ${time} seconds`);
   const sampleSource = soundState.sampleSource;
   sampleSource?.stop(time);
   soundState.isPlaying = false;
@@ -147,96 +154,9 @@ const scheduler = () => {
   timerID = window.setTimeout(scheduler, lookahead);
 };
 
-interface TrackCellProps {
-  trackIndex: number;
-  index: number;
-  initialTracks: boolean[][];
-}
-
-// 一つ一つのノート
-const TrackCell = (props: TrackCellProps) => {
-  // このノートが選択されているなら true
-  // globalTracks[props.trackIndex][props.index] と同じ値になっている必要がある．
-  const [isSelected, setIsSelected] = useState(
-    props.initialTracks[props.trackIndex][props.index]
-  );
-
-  // 最初はどのみちクリアしているはずなので，一番最初の描画では更新しないようにする．
-  const firstUpdate = useRef(true);
-  useEffect(() => {
-    if (firstUpdate.current) {
-      firstUpdate.current = false;
-      return;
-    }
-
-    // initialTracks（ユーザがアップロードしたメロディ）が更新されたら
-    // （ユーザがアップロードしたら）このノートも更新する．
-    console.log("initialize cells");
-    setIsSelected(props.initialTracks[props.trackIndex][props.index]);
-  }, [props.trackIndex, props.index, props.initialTracks]);
-
-  return (
-    <ToggleButton
-      className={`cell (_, ${props.index})`}
-      value="check"
-      selected={isSelected}
-      onMouseDown={() => {
-        // 2 重に再生されないようになっているので，まず止めてから再生する．
-        // 要改良
-        // ユーザがクリックしたタイミングで鳴らす
-        stop(testSoundStates[props.trackIndex], 0);
-        play(testSoundStates[props.trackIndex], 0);
-      }}
-      onMouseUp={() => {
-        stop(testSoundStates[props.trackIndex], 0.1);
-      }}
-      onChange={() => {
-        // 選択状態かどうかをトグルする．
-        console.log(
-          `set cell (${props.trackIndex}, ${props.index})`,
-          !isSelected
-        );
-        setIsSelected(!isSelected);
-        globalTracks[props.trackIndex][props.index] = !isSelected;
-      }}
-      style={{
-        width: "10px",
-        height: "10px",
-        color: "#777",
-        margin: "0px",
-        padding: "10px",
-      }}
-    >
-      <code>{props.index % 4 === 0 ? "." : " "}</code>
-    </ToggleButton>
-  );
-};
-
-interface TrackCellsProps {
-  trackIndex: number; // このトラックの識別子（音階のキー）
-  initialTracks: boolean[][];
-}
-
-// 一本のトラック
-const TrackCells = (props: TrackCellsProps) => {
-  const track = Array(trackLength).fill(false);
-
-  return (
-    <Stack direction="row" spacing={1} style={{ width: "auto" }}>
-      {track.map((_, index) => (
-        <TrackCell
-          key={index}
-          trackIndex={props.trackIndex}
-          index={index}
-          initialTracks={props.initialTracks}
-        />
-      ))}
-    </Stack>
-  );
-};
-
 interface TrackNoteHeaderProps {
   trackIndex: number;
+  noteName: string;
 }
 
 const TrackNoteHeader = (trackNoteHeaderProps: TrackNoteHeaderProps) => (
@@ -245,15 +165,171 @@ const TrackNoteHeader = (trackNoteHeaderProps: TrackNoteHeaderProps) => (
       width: "20px",
       height: "20px",
       overflow: "hidden",
-      border: "1px solid transparent",
     }}
   >
     <code>{noteNames[trackNoteHeaderProps.trackIndex]}</code>
   </div>
 );
 
-const Tracks = (props: { initialTracks: boolean[][] }) => {
-  const tracks = Array(noteNames.length).fill(false);
+const noteN = 29;
+
+const getCoordination = (ctx: CanvasRenderingContext2D, e: MouseEvent) => {
+  /*
+   * rectでcanvasの絶対座標位置を取得し、
+   * クリック座標であるe.clientX,e.clientYからその分を引く
+   * ※クリック座標はdocumentからの位置を返すため
+   * ※rectはスクロール量によって値が変わるので、onClick()内でつど定義
+   */
+  const rect = (e.target as HTMLElement).getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  const noteX = Math.floor(x / 20);
+  const noteY = Math.floor(y / 20);
+
+  return [noteX, noteY];
+};
+
+// initialize a cell
+const initCell = (
+  ctx: CanvasRenderingContext2D,
+  noteX: number,
+  noteY: number
+) => {
+  const trackIndex = noteN - 1 - noteY;
+  const positionIndex = noteX;
+
+  const isSelected = globalTracks[trackIndex][positionIndex];
+
+  if (isSelected) {
+    ctx.fillStyle = "#777";
+    // ctx.fillRect(noteX * 20 + 1, noteY * 20 + 1, 20 - 2, 20 - 2);
+    ctx.fillRect(noteX * 20, noteY * 20, 20, 20);
+  } else {
+    // ctx.clearRect(noteX * 20 + 1, noteY * 20 + 1, 20 - 2, 20 - 2);
+    ctx.clearRect(noteX * 20, noteY * 20, 20, 20);
+  }
+};
+
+const onClick = (ctx: CanvasRenderingContext2D) => (e: MouseEvent) => {
+  const [noteX, noteY] = getCoordination(ctx, e);
+
+  const trackIndex = noteN - 1 - noteY;
+  const positionIndex = noteX;
+
+  // console.log("onclick canvas", trackIndex, positionIndex);
+
+  const isSelected = globalTracks[trackIndex][positionIndex];
+
+  globalTracks[trackIndex][positionIndex] = !isSelected;
+
+  if (!isSelected) {
+    ctx.fillStyle = "#777";
+    // ctx.fillRect(noteX * 20 + 1, noteY * 20 + 1, 20 - 2, 20 - 2);
+    ctx.fillRect(noteX * 20, noteY * 20, 20, 20);
+  } else {
+    // ctx.clearRect(noteX * 20 + 1, noteY * 20 + 1, 20 - 2, 20 - 2);
+    ctx.clearRect(noteX * 20, noteY * 20, 20, 20);
+  }
+
+  // 2 重に再生されないようになっているので，まず止めてから再生する．
+  // 要改良
+  // ユーザがクリックしたタイミングで鳴らす
+  stop(testSoundStates[trackIndex], 0);
+  play(testSoundStates[trackIndex], 0);
+};
+
+const onMouseUpCanvas = (ctx: CanvasRenderingContext2D) => (e: MouseEvent) => {
+  const [, noteY] = getCoordination(ctx, e);
+
+  const trackIndex = noteN - 1 - noteY;
+
+  stop(testSoundStates[trackIndex], audioContext.currentTime + 0.2);
+};
+
+const getCanvas = (
+  id: string
+): [HTMLCanvasElement, CanvasRenderingContext2D] => {
+  const elem = document.getElementById(id) as HTMLCanvasElement | null;
+  if (!elem) {
+    throw new Error(`no such element with the id ${id}`);
+  }
+  var ctx = (elem as HTMLCanvasElement).getContext("2d");
+  if (!ctx) {
+    throw new Error("cannot get the context");
+  }
+  return [elem, ctx];
+};
+
+let barCtxGlobal: CanvasRenderingContext2D | null = null;
+let barElemGlobal: HTMLCanvasElement | null = null;
+
+let isFirst = true;
+
+const initCanvas = () => {
+  console.log("initialize canvas");
+  const [, backCtx] = getCanvas("canvas-background");
+  const [notesElem, notesCtx] = getCanvas("canvas-notes");
+  const [barElem, barCtx] = getCanvas("canvas-bar");
+
+  barCtxGlobal = barCtx;
+  barElemGlobal = barElem;
+
+  // 透過させる
+  notesCtx.clearRect(0, 0, notesElem.width, notesElem.height);
+  barCtx.clearRect(0, 0, barElem.width, barElem.height);
+
+  if (isFirst) {
+    // 2回以上 addEventListener するのはダメなようなので，
+    // 初回のみ初期化するようにしている
+    isFirst = false;
+    barElem.addEventListener("mousedown", onClick(notesCtx), false);
+    barElem.addEventListener("mouseup", onMouseUpCanvas(notesCtx), false);
+  }
+
+  // 枠線を描く
+  backCtx.strokeStyle = "#444";
+  backCtx.beginPath();
+  for (let i = 0; i < noteN + 1; i++) {
+    backCtx.moveTo(0, i * 20);
+    backCtx.lineTo(trackLength * 20, i * 20);
+  }
+  for (let i = 0; i < trackLength + 1; i++) {
+    backCtx.moveTo(i * 20, 0);
+    backCtx.lineTo(i * 20, noteN * 20);
+  }
+  backCtx.stroke();
+
+  // 小節ごとの目印
+  backCtx.strokeStyle = "#555";
+  backCtx.beginPath();
+  for (let i = 0; i < trackLength / 4 + 1; i++) {
+    backCtx.moveTo(i * 20 * 4, 0);
+    backCtx.lineTo(i * 20 * 4, noteN * 20);
+  }
+  backCtx.stroke();
+
+  return [notesCtx, barCtx];
+};
+
+interface TracksProps {
+  initialTracks: boolean[][];
+  noteNames: string[];
+}
+
+const Tracks = (props: TracksProps) => {
+  useEffect(() => {
+    // if (!canvasCtx) {
+    //   canvasCtx = initCanvas();
+    // } else {
+    const [canvasCtx, barCtx] = initCanvas();
+    barCtxGlobal = barCtx;
+    for (let i = 0; i < trackLength; i++) {
+      for (let j = 0; j < noteN; j++) {
+        initCell(canvasCtx, i, j);
+      }
+    }
+  }, [props.initialTracks]);
 
   return (
     <div
@@ -268,40 +344,59 @@ const Tracks = (props: { initialTracks: boolean[][] }) => {
         overflowX: "hidden",
       }}
     >
-      <Stack
-        direction="column"
-        spacing={0}
-        style={{
-          display: "inline-block",
-          width: "30px",
-          verticalAlign: "top",
-        }}
-      >
-        {tracks.map((_, index) => (
-          <TrackNoteHeader key={index} trackIndex={tracks.length - index - 1} />
-        ))}
-      </Stack>
-      <div
-        style={{
-          overflowX: "scroll",
-          overflowY: "hidden",
-          width: "calc(100% - 30px)",
-          height: "auto",
-          fontSize: "calc(5px + 1vmin)",
-          color: "#777",
-          display: "inline-block",
-        }}
-      >
-        <Stack direction="column" spacing={0} id="piano-roll">
-          {tracks.map((_, index) => (
-            <TrackCells
-              key={index}
-              trackIndex={tracks.length - index - 1}
-              initialTracks={props.initialTracks}
-            />
-          ))}
-        </Stack>
-      </div>
+      <Grid container spacing={2}>
+        <Grid item xs={1}>
+          <Stack
+            id="note-name-list"
+            direction="column"
+            spacing={0}
+            style={{
+              display: "inline-block",
+              width: "30px",
+            }}
+          >
+            {props.noteNames.map((noteName, index) => (
+              <TrackNoteHeader
+                key={index}
+                noteName={noteName}
+                trackIndex={props.noteNames.length - index - 1}
+              />
+            ))}
+          </Stack>
+        </Grid>
+        <Grid item xs={11}>
+          <div
+            style={{
+              overflowX: "scroll",
+              overflowY: "hidden",
+              width: "100%",
+              height: "100%",
+              fontSize: "calc(5px + 1vmin)",
+              color: "#777",
+              position: "relative",
+            }}
+          >
+            <canvas
+              id="canvas-background"
+              width={`${trackLength * 20}`}
+              height={`${noteN * 20}`}
+              style={{ position: "absolute", left: "0" }}
+            ></canvas>
+            <canvas
+              id="canvas-notes"
+              width={`${trackLength * 20}`}
+              height={`${noteN * 20}`}
+              style={{ position: "absolute", left: "0" }}
+            ></canvas>
+            <canvas
+              id="canvas-bar"
+              width={`${trackLength * 20}`}
+              height={`${noteN * 20}`}
+              style={{ position: "absolute", left: "0" }}
+            ></canvas>
+          </div>
+        </Grid>
+      </Grid>
     </div>
   );
 };
@@ -313,11 +408,8 @@ let lastNoteDrawn = trackLength;
 // ハイライトを除去する．
 const eliminateHilights = () => {
   console.log("eliminate hilights", lastNoteDrawn);
-  const lastNoteElems = document.getElementsByClassName(
-    `cell (_, ${lastNoteDrawn})`
-  ) as HTMLCollectionOf<HTMLElement>;
-  for (let i = 0; i < lastNoteElems.length; i++) {
-    lastNoteElems[i].style.boxShadow = "none";
+  if (barCtxGlobal && barElemGlobal) {
+    barCtxGlobal.clearRect(0, 0, barElemGlobal.width, barElemGlobal.height);
   }
 };
 
@@ -337,28 +429,20 @@ const draw = (setBeatTimer: (beatTimer: number) => void) => () => {
     setBeatTimer(drawNote);
 
     // 現在再生している部分をハイライトする．
-    const currentNoteElems = document.getElementsByClassName(
-      `cell (_, ${drawNote})`
-    ) as HTMLCollectionOf<HTMLElement>;
-    for (let i = 0; i < currentNoteElems.length; i++) {
-      if (globalTracks[globalTracks.length - i - 1][drawNote]) {
-        // 今音を出しているノード
-        currentNoteElems[i].style.boxShadow =
-          "0 0 8px rgba(180, 180, 255, 0.5)";
-      } else {
-        currentNoteElems[i].style.boxShadow =
-          "0 0 8px rgba(255, 255, 255, 0.2)";
+
+    if (barCtxGlobal && barElemGlobal) {
+      barCtxGlobal.clearRect(0, 0, barElemGlobal.width, barElemGlobal.height);
+      for (let i = 0; i < noteN; i++) {
+        if (globalTracks[globalTracks.length - i - 1][drawNote]) {
+          // 今音を出しているノード
+          barCtxGlobal.fillStyle = "#789";
+          barCtxGlobal.fillRect(drawNote * 20 + 1, i * 20 + 1, 20 - 2, 20 - 2);
+        } else {
+          barCtxGlobal.fillStyle = "#30333a";
+          barCtxGlobal.fillRect(drawNote * 20 + 1, i * 20 + 1, 20 - 2, 20 - 2);
+        }
       }
     }
-
-    // ハイライトを除去する．
-    const lastNoteElems = document.getElementsByClassName(
-      `cell (_, ${lastNoteDrawn})`
-    ) as HTMLCollectionOf<HTMLElement>;
-    for (let i = 0; i < lastNoteElems.length; i++) {
-      lastNoteElems[i].style.boxShadow = "none";
-    }
-
     lastNoteDrawn = drawNote;
   }
   // set up to draw again
@@ -392,10 +476,11 @@ interface PlayButtonProps {
 }
 
 // 再生ボタンなど，各種メニュー
-const PlayButton = (playButtonProps: PlayButtonProps) => {
+const PlayButton = (props: PlayButtonProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [beatTimer, setBeatTimer] = useState(0);
   const [bpm, setBPM] = useState(100);
+  const [initialTrackLength, setInitialTrackLength] = useState(trackLength);
 
   const handleChangeBPM = (event: Event, newBPM: number | number[]) => {
     globalBPM = newBPM as number;
@@ -462,16 +547,57 @@ const PlayButton = (playButtonProps: PlayButtonProps) => {
         </Box>
         <UploadButton
           setFile={(file) => {
+            console.log("setting file");
             file.text().then((text) => {
               const tracks = JSON.parse(text);
               globalTracks = tracks;
-              playButtonProps.setInitialTracks(globalTracks);
+              console.log("setting initial tracks");
+              trackLength = globalTracks[0].length;
+              props.setInitialTracks(globalTracks);
+              setInitialTrackLength(globalTracks[0].length);
             });
           }}
         />
         <DownloadButton
-          content={JSON.stringify(globalTracks)}
+          content={JSON.stringify(
+            globalTracks.map((tracks) => tracks.slice(0, trackLength))
+          )}
           fileName="song.txt"
+        />
+        <TrackLengthField
+          initialTrackLength={initialTrackLength}
+          min={8}
+          setTrackLength={(newTrackLength: number) => {
+            trackLength = newTrackLength;
+            if (globalTracks[0].length < newTrackLength) {
+              console.log("mapping new track");
+              globalTracks = globalTracks.map((globalTrack) => [
+                ...globalTrack,
+                ...makeArray(newTrackLength - globalTrack.length, false),
+              ]);
+              console.log("mapped new track. initializing tracks");
+              const setupInitialTracks = async () => {
+                await props.setInitialTracks(globalTracks);
+                console.log("setup the initial tracks --- (1)");
+              };
+              setupInitialTracks();
+            } else {
+              // グローバルトラックの長さを縮めることはしない
+              const newInitialTracks = globalTracks.map((track) =>
+                track.slice(0, newTrackLength)
+              );
+              console.log("newTrackLength", newTrackLength);
+              console.log(
+                "newInitialTracks[0].length",
+                newInitialTracks[0].length
+              );
+              const setupInitialTracks = async () => {
+                await props.setInitialTracks(newInitialTracks);
+                console.log("setup the initial tracks --- (2)");
+              };
+              setupInitialTracks();
+            }
+          }}
         />
       </Stack>
     </div>
@@ -511,7 +637,7 @@ const App = () => {
                 <ProjectInfo />
               </Grid>
               <Grid item xs={12}>
-                <Tracks initialTracks={initialTracks} />
+                <Tracks initialTracks={initialTracks} noteNames={noteNames} />
               </Grid>
             </Grid>
           </Box>
