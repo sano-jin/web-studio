@@ -211,41 +211,94 @@ const initCell = (
   }
 };
 
-const onClick = (ctx: CanvasRenderingContext2D) => (e: MouseEvent) => {
-  const [noteX, noteY] = getCoordination(ctx, e);
+let isDrawing = false;
+let lastDrawnNote = [-1, -1];
 
-  const trackIndex = noteN - 1 - noteY;
-  const positionIndex = noteX;
+const onClick =
+  (ctx: CanvasRenderingContext2D, clearSelect: () => void) =>
+  (e: MouseEvent) => {
+    isDrawing = true;
+    clearSelect();
 
-  // console.log("onclick canvas", trackIndex, positionIndex);
+    const [noteX, noteY] = getCoordination(ctx, e);
+    lastDrawnNote = [noteX, noteY];
 
-  const isSelected = globalTracks[trackIndex][positionIndex];
+    const trackIndex = noteN - 1 - noteY;
+    const positionIndex = noteX;
 
-  globalTracks[trackIndex][positionIndex] = !isSelected;
+    // console.log("onclick canvas", trackIndex, positionIndex);
 
-  if (!isSelected) {
-    ctx.fillStyle = "#777";
-    // ctx.fillRect(noteX * 20 + 1, noteY * 20 + 1, 20 - 2, 20 - 2);
-    ctx.fillRect(noteX * 20, noteY * 20, 20, 20);
-  } else {
-    // ctx.clearRect(noteX * 20 + 1, noteY * 20 + 1, 20 - 2, 20 - 2);
-    ctx.clearRect(noteX * 20, noteY * 20, 20, 20);
-  }
+    const isSelected = globalTracks[trackIndex][positionIndex];
 
-  // 2 重に再生されないようになっているので，まず止めてから再生する．
-  // 要改良
-  // ユーザがクリックしたタイミングで鳴らす
-  stop(testSoundStates[trackIndex], 0);
-  play(testSoundStates[trackIndex], 0);
-};
+    globalTracks[trackIndex][positionIndex] = !isSelected;
 
-const onMouseUpCanvas = (ctx: CanvasRenderingContext2D) => (e: MouseEvent) => {
-  const [, noteY] = getCoordination(ctx, e);
+    if (!isSelected) {
+      ctx.fillStyle = "#777";
+      // ctx.fillRect(noteX * 20 + 1, noteY * 20 + 1, 20 - 2, 20 - 2);
+      ctx.fillRect(noteX * 20, noteY * 20, 20, 20);
+    } else {
+      // ctx.clearRect(noteX * 20 + 1, noteY * 20 + 1, 20 - 2, 20 - 2);
+      ctx.clearRect(noteX * 20, noteY * 20, 20, 20);
+    }
 
-  const trackIndex = noteN - 1 - noteY;
+    // 2 重に再生されないようになっているので，まず止めてから再生する．
+    // 要改良
+    // ユーザがクリックしたタイミングで鳴らす
+    stop(testSoundStates[trackIndex], 0);
+    play(testSoundStates[trackIndex], 0);
+  };
 
-  stop(testSoundStates[trackIndex], audioContext.currentTime + 0.2);
-};
+const onMouseUpCanvas =
+  (ctx: CanvasRenderingContext2D, clearSelect: () => void) =>
+  (e: MouseEvent) => {
+    isDrawing = false;
+    clearSelect();
+
+    const [, noteY] = getCoordination(ctx, e);
+
+    const trackIndex = noteN - 1 - noteY;
+
+    stop(testSoundStates[trackIndex], audioContext.currentTime + 0.2);
+  };
+
+const onMouseMoveCanvas =
+  (
+    notesCtx: CanvasRenderingContext2D,
+    selectedCtx: CanvasRenderingContext2D,
+    clearSelect: () => void
+  ) =>
+  (e: MouseEvent) => {
+    const [noteX, noteY] = getCoordination(notesCtx, e);
+
+    const trackIndex = noteN - 1 - noteY;
+    const positionIndex = noteX;
+
+    const isSelected = globalTracks[trackIndex][positionIndex];
+
+    if (noteX !== lastDrawnNote[0] || noteY !== lastDrawnNote[1]) {
+      if (isDrawing) {
+        if (!isSelected) {
+          notesCtx.fillStyle = "#777";
+          notesCtx.fillRect(noteX * 20, noteY * 20, 20, 20);
+        } else {
+          notesCtx.clearRect(noteX * 20, noteY * 20, 20, 20);
+        }
+        globalTracks[trackIndex][positionIndex] = !isSelected;
+      } else {
+        // is not drawing
+        console.log("hoge");
+        clearSelect();
+        if (isSelected) {
+          selectedCtx.fillStyle = "#abb";
+          selectedCtx.fillRect(noteX * 20, noteY * 20, 20, 20);
+        } else {
+          selectedCtx.fillStyle = "#455";
+          selectedCtx.fillRect(noteX * 20, noteY * 20, 20, 20);
+        }
+      }
+      lastDrawnNote = [noteX, noteY];
+    }
+  };
 
 const getCanvas = (
   id: string
@@ -271,6 +324,7 @@ const initCanvas = () => {
   const [, backCtx] = getCanvas("canvas-background");
   const [notesElem, notesCtx] = getCanvas("canvas-notes");
   const [barElem, barCtx] = getCanvas("canvas-bar");
+  const [selectedElem, selectedCtx] = getCanvas("canvas-selected");
 
   barCtxGlobal = barCtx;
   barElemGlobal = barElem;
@@ -278,13 +332,35 @@ const initCanvas = () => {
   // 透過させる
   notesCtx.clearRect(0, 0, notesElem.width, notesElem.height);
   barCtx.clearRect(0, 0, barElem.width, barElem.height);
+  selectedCtx.clearRect(0, 0, selectedElem.width, selectedElem.height);
+
+  const clearSelect = () => {
+    lastDrawnNote = [-1, -1];
+    selectedCtx.clearRect(0, 0, selectedElem.width, selectedElem.height);
+  };
 
   if (isFirst) {
     // 2回以上 addEventListener するのはダメなようなので，
     // 初回のみ初期化するようにしている
     isFirst = false;
-    barElem.addEventListener("mousedown", onClick(notesCtx), false);
-    barElem.addEventListener("mouseup", onMouseUpCanvas(notesCtx), false);
+    selectedElem.addEventListener(
+      "mousedown",
+      onClick(notesCtx, clearSelect),
+      false
+    );
+    selectedElem.addEventListener(
+      "mouseup",
+      onMouseUpCanvas(notesCtx, clearSelect),
+      false
+    );
+    selectedElem.addEventListener(
+      "mousemove",
+      onMouseMoveCanvas(notesCtx, selectedCtx, clearSelect),
+      false
+    );
+    selectedElem.addEventListener("mouseout", (e) => {
+      clearSelect();
+    });
   }
 
   // 枠線を描く
@@ -316,6 +392,15 @@ interface TracksProps {
   initialTracks: boolean[][];
   noteNames: string[];
 }
+
+const Canvas = (props: { id: string }) => (
+  <canvas
+    id={props.id}
+    width={`${trackLength * 20}`}
+    height={`${noteN * 20}`}
+    style={{ position: "absolute", left: "0" }}
+  ></canvas>
+);
 
 const Tracks = (props: TracksProps) => {
   useEffect(() => {
@@ -376,24 +461,10 @@ const Tracks = (props: TracksProps) => {
               position: "relative",
             }}
           >
-            <canvas
-              id="canvas-background"
-              width={`${trackLength * 20}`}
-              height={`${noteN * 20}`}
-              style={{ position: "absolute", left: "0" }}
-            ></canvas>
-            <canvas
-              id="canvas-notes"
-              width={`${trackLength * 20}`}
-              height={`${noteN * 20}`}
-              style={{ position: "absolute", left: "0" }}
-            ></canvas>
-            <canvas
-              id="canvas-bar"
-              width={`${trackLength * 20}`}
-              height={`${noteN * 20}`}
-              style={{ position: "absolute", left: "0" }}
-            ></canvas>
+            <Canvas id="canvas-background" />
+            <Canvas id="canvas-notes" />
+            <Canvas id="canvas-bar" />
+            <Canvas id="canvas-selected" />
           </div>
         </Grid>
       </Grid>
@@ -435,8 +506,8 @@ const draw = (setBeatTimer: (beatTimer: number) => void) => () => {
       for (let i = 0; i < noteN; i++) {
         if (globalTracks[globalTracks.length - i - 1][drawNote]) {
           // 今音を出しているノード
-          barCtxGlobal.fillStyle = "#789";
-          barCtxGlobal.fillRect(drawNote * 20 + 1, i * 20 + 1, 20 - 2, 20 - 2);
+          barCtxGlobal.fillStyle = "#acd";
+          barCtxGlobal.fillRect(drawNote * 20, i * 20, 20, 20);
         } else {
           barCtxGlobal.fillStyle = "#30333a";
           barCtxGlobal.fillRect(drawNote * 20 + 1, i * 20 + 1, 20 - 2, 20 - 2);
@@ -629,17 +700,21 @@ const App = () => {
           <CircularProgress color="secondary" />
         ) : (
           <Box sx={{ flexGrow: 1 }} style={{ width: "90%", margin: "50px 0" }}>
-            <Grid container spacing={2}>
-              <Grid item xs={11}>
-                <PlayButton setInitialTracks={setInitialTracks} />
+            <Box style={{ overflowX: "scroll" }}>
+              <Grid
+                container
+                spacing={2}
+                style={{ minWidth: "800px", margin: "30px 0" }}
+              >
+                <Grid item xs={11}>
+                  <PlayButton setInitialTracks={setInitialTracks} />
+                </Grid>
+                <Grid item xs={1}>
+                  <ProjectInfo />
+                </Grid>
               </Grid>
-              <Grid item xs={1}>
-                <ProjectInfo />
-              </Grid>
-              <Grid item xs={12}>
-                <Tracks initialTracks={initialTracks} noteNames={noteNames} />
-              </Grid>
-            </Grid>
+            </Box>
+            <Tracks initialTracks={initialTracks} noteNames={noteNames} />
           </Box>
         )}
       </header>
