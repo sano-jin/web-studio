@@ -14,7 +14,6 @@ import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import InfoIcon from "@mui/icons-material/Info";
 import GitHubIcon from "@mui/icons-material/GitHub";
-// import Divider from "@mui/material/Divider";
 
 export const ProjectInfo = () => {
   const [open, setOpen] = React.useState(false);

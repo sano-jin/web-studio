@@ -98,7 +98,6 @@ export const testSoundStates: SoundState[] = makeArray(noteNames.length, {
 
 // 音源を取得し AudioBuffer 形式に変換して返す関数
 const setupSample = async (audioContext: AudioContext, index: string) => {
-  console.log("setting", index);
   const response = await fetch(`./SynthesizedPianoNotes/Piano${index}.mp3`);
   const arrayBuffer = await response.arrayBuffer();
   // Web Audio API で使える形式に変換
@@ -115,7 +114,7 @@ let setupCounter = 0;
 export const setup = async (audioContext: AudioContext) => {
   await Promise.all(
     soundFileNames.map(async (note, index) => {
-      console.log("index, note", index, note);
+      console.log("setting", index, note);
       const audioBuffer = await setupSample(audioContext, note);
       soundStates[index].audioBuffer = audioBuffer;
       testSoundStates[index].audioBuffer = audioBuffer;
